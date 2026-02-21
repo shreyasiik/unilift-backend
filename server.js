@@ -24,7 +24,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "https://your-vercel-frontend-url.vercel.app", // 🔥 replace after deploy
+      "https://unilift-frontend.vercel.app", // 🔥 replace after deploy
     ],
     credentials: true,
   })
