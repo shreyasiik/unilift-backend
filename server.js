@@ -12,25 +12,40 @@ const authRoutes = require("./routes/auth");
 
 const app = express();
 
+/* ================= PORT ================= */
+
+const PORT = process.env.PORT || 5000;
+
+/* ================= MIDDLEWARE ================= */
+
 app.use(express.json());
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "https://your-vercel-frontend-url.vercel.app", // 🔥 replace after deploy
+    ],
     credentials: true,
   })
 );
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || "fallbacksecret",
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      secure: false, // set true after https deployment
+      httpOnly: true,
+    },
   })
 );
 
 app.use(passport.initialize());
 app.use(passport.session());
+
+/* ================= ROUTES ================= */
 
 app.use("/api/auth", authRoutes);
 
@@ -40,15 +55,19 @@ app.get("/api/protected", (req, res) => {
   }
   res.status(401).json({ message: "Unauthorized" });
 });
+
 app.get("/", (req, res) => {
   res.send("UniLift Backend Running 🚀");
 });
+
+/* ================= DATABASE ================= */
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB connected");
-    app.listen(process.env.PORT, () =>
-      console.log(`Server running on port ${process.env.PORT}`)
+    app.listen(PORT, () =>
+      console.log(`Server running on port ${PORT}`)
     );
   })
-  .catch((err) => console.log(err));
+  .catch((err) => console.log("MongoDB Error:", err));
