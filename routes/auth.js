@@ -60,6 +60,7 @@ router.post("/send-otp", async (req, res) => {
     console.log("MAIL ERROR:", error);
     res.status(500).json({ message: "Failed to send OTP" });
   }
+  console.log("EMAIL ERROR:", error);
 });
 
 /* ========================= */
@@ -193,16 +194,28 @@ router.post("/register", async (req, res) => {
 /* LOGIN */
 /* ========================= */
 
-router.post(
-  "/login",
-  passport.authenticate("local"),
-  (req, res) => {
-    res.json({
-      message: "Logged in successfully",
-      user: req.user,
+router.post("/login", (req, res, next) => {
+  passport.authenticate("local", (err, user, info) => {
+    if (err) return res.status(500).json({ message: "Server error" });
+
+    if (!user) {
+      return res.status(401).json({
+        message: info?.message || "Invalid credentials",
+      });
+    }
+
+    req.logIn(user, (err) => {
+      if (err) {
+        return res.status(500).json({ message: "Login failed" });
+      }
+
+      return res.json({
+        message: "Logged in successfully",
+        user,
+      });
     });
-  }
-);
+  })(req, res, next);
+});
 
 /* ========================= */
 /* LOGOUT */
