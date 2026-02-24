@@ -28,7 +28,7 @@ router.post("/send-otp", async (req, res) => {
 
     if (!validateCollegeEmail(email)) {
       return res.status(400).json({
-        message: "Only @medicaps.ac.in email allowed",
+        message: "Only Medicaps college email allowed",
       });
     }
 
@@ -52,17 +52,16 @@ router.post("/send-otp", async (req, res) => {
       from: process.env.EMAIL_USER,
       to: cleanEmail,
       subject: "UniLift OTP Verification",
-        text: `Your OTP for UniLift registration is: ${otp}. It expires in 5 minutes.`,
+      text: `Your OTP is ${otp}. It expires in 5 minutes.`,
     });
 
     res.json({ message: "OTP sent successfully" });
+
   } catch (error) {
-    console.log("MAIL ERROR:", error);
+    console.log("EMAIL ERROR:", error);
     res.status(500).json({ message: "Failed to send OTP" });
   }
-  console.log("EMAIL ERROR:", error);
 });
-
 /* ========================= */
 /* VERIFY OTP */
 /* ========================= */
