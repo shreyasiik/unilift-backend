@@ -1,231 +1,181 @@
 const express = require("express");
-const passport = require("passport");
+const router = express.Router();
+
 const bcrypt = require("bcrypt");
-const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+const rateLimit = require("express-rate-limit");
+const { Resend } = require("resend");
 
 const User = require("../models/User");
 const Otp = require("../models/Otp");
 
-const router = express.Router();
+require("dotenv").config();
 
-/* ========================= */
-/* VALIDATE COLLEGE EMAIL */
-/* ========================= */
+console.log("RESEND KEY:", process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-function validateCollegeEmail(email) {
-  if (!email) return false;
-  const cleanEmail = email.trim().toLowerCase();
-  return cleanEmail.endsWith("@medicaps.ac.in");
+// Rate limiter for OTP
+const otpLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { message: "Too many OTP requests. Try again later." },
+});
+
+// Generate 6-digit OTP
+function generateOTP() {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
-/* ========================= */
-/* SEND OTP */
-/* ========================= */
-
-router.post("/send-otp", async (req, res) => {
+/* =========================
+   SEND OTP
+========================= */
+router.post("/send-otp", otpLimiter, async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!validateCollegeEmail(email)) {
-      return res.status(400).json({
-        message: "Only Medicaps college email allowed",
-      });
+    if (!email || !email.endsWith("@medicaps.ac.in")) {
+      return res.status(400).json({ message: "Invalid college email." });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const otp = generateOTP();
+    const hashedOtp = await bcrypt.hash(otp, 10);
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await Otp.deleteMany({ email });
 
-    await Otp.deleteMany({ email: cleanEmail });
-    await Otp.create({ email: cleanEmail, otp, expiresAt });
-
-    const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: cleanEmail,
-      subject: "UniLift OTP Verification",
-      text: `Your OTP is ${otp}. It expires in 5 minutes.`,
+    await Otp.create({
+      email,
+      otp: hashedOtp,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    res.json({ message: "OTP sent successfully" });
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: "UniLift OTP Verification",
+      html: `
+        <div style="font-family:sans-serif;">
+          <h2>UniLift Verification Code</h2>
+          <p>Your OTP is:</p>
+          <h1 style="letter-spacing:4px;">${otp}</h1>
+          <p>This OTP expires in 5 minutes.</p>
+        </div>
+      `,
+    });
+
+    res.status(200).json({ message: "OTP sent successfully." });
 
   } catch (error) {
-  console.log("SEND OTP ERROR:", error);
-  res.status(500).json({ message: "Failed to send OTP" });
-}
+    console.error("Send OTP Error:", error);
+    res.status(500).json({ message: "Failed to send OTP." });
+  }
 });
-/* ========================= */
-/* VERIFY OTP */
-/* ========================= */
 
+/* =========================
+   VERIFY OTP
+========================= */
 router.post("/verify-otp", async (req, res) => {
   try {
     const { email, otp } = req.body;
 
-    const cleanEmail = email.trim().toLowerCase();
-
-    const record = await Otp.findOne({
-      email: cleanEmail,
-      otp,
-    });
+    const record = await Otp.findOne({ email });
 
     if (!record) {
-      return res.status(400).json({ message: "Invalid OTP" });
+      return res.status(400).json({ message: "OTP not found." });
     }
 
     if (record.expiresAt < new Date()) {
-      await Otp.deleteMany({ email: cleanEmail });
-      return res.status(400).json({ message: "OTP expired" });
+      await Otp.deleteOne({ email });
+      return res.status(400).json({ message: "OTP expired." });
     }
 
-    await Otp.deleteMany({ email: cleanEmail });
+    const isMatch = await bcrypt.compare(otp, record.otp);
 
-    // Mark user as verified or create temp user
-    let user = await User.findOne({ email: cleanEmail });
-
-    if (!user) {
-      user = new User({
-        email: cleanEmail,
-        isVerified: true,
-      });
-    } else {
-      user.isVerified = true;
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid OTP." });
     }
 
-    await user.save();
+    await Otp.deleteOne({ email });
 
-    res.json({ message: "OTP verified successfully" });
+    res.status(200).json({ message: "OTP verified." });
+
   } catch (error) {
-    res.status(500).json({ message: "Verification failed" });
+    console.error("Verify OTP Error:", error);
+    res.status(500).json({ message: "Verification failed." });
   }
 });
 
-/* ========================= */
-/* REGISTER */
-/* ========================= */
-
-
-/* ================= REGISTER ================= */
-
+/* =========================
+   REGISTER
+========================= */
 router.post("/register", async (req, res) => {
   try {
-    console.log("REGISTER BODY:", req.body);
-
     const {
+      name,
       email,
       password,
       role,
-      license,
+      drivingLicense,
       vehicleNumber,
       vehicleType,
     } = req.body;
 
-    if (!email || !password || !role) {
-      return res.status(400).json({
-        message: "Missing required fields",
-      });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail.endsWith("@medicaps.ac.in")) {
-      return res.status(400).json({
-        message: "Only Medicaps college email allowed",
-      });
-    }
-
-    if (role === "driver") {
-      if (
-        !license ||
-        !vehicleNumber ||
-        !vehicleType ||
-        !license.trim() ||
-        !vehicleNumber.trim()
-      ) {
-        return res.status(400).json({
-          message: "Driver details are required",
-        });
-      }
-    }
-
-    const existingUser = await User.findOne({ email: cleanEmail });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
-  return res.status(409).json({
-    message: "User already exists",
-    redirectToLogin: true,
-  });
-}
+      return res.status(400).json({ message: "User already exists." });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
-      email: cleanEmail,
+      name,
+      email,
       password: hashedPassword,
       role,
-      license: role === "driver" ? license.trim() : undefined,
-      vehicleNumber: role === "driver" ? vehicleNumber.trim() : undefined,
+      drivingLicense: role === "driver" ? drivingLicense : undefined,
+      vehicleNumber: role === "driver" ? vehicleNumber : undefined,
       vehicleType: role === "driver" ? vehicleType : undefined,
     });
 
     await newUser.save();
 
-    res.json({
-      message: "User registered successfully",
-    });
+    res.status(201).json({ message: "User registered successfully." });
 
   } catch (error) {
-    console.log("REGISTER ERROR:", error);
-    res.status(500).json({
-      message: "Server error during registration",
-    });
+    console.error("Register Error:", error);
+    res.status(500).json({ message: "Registration failed." });
   }
 });
 
-/* ========================= */
-/* LOGIN */
-/* ========================= */
+/* =========================
+   LOGIN
+========================= */
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-router.post("/login", (req, res, next) => {
-  passport.authenticate("local", (err, user, info) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
+    const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({
-        message: info?.message || "Invalid credentials",
-      });
+      return res.status(400).json({ message: "Invalid credentials." });
     }
 
-    req.logIn(user, (err) => {
-      if (err) {
-        return res.status(500).json({ message: "Login failed" });
-      }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials." });
+    }
 
-      return res.json({
-        message: "Logged in successfully",
-        user,
-      });
+    res.status(200).json({
+      message: "Login successful.",
+      user: {
+        id: user._id,
+        name: user.name,
+        role: user.role,
+      },
     });
-  })(req, res, next);
+
+  } catch (error) {
+    console.error("Login Error:", error);
+    res.status(500).json({ message: "Login failed." });
+  }
 });
 
-/* ========================= */
-/* LOGOUT */
-/* ========================= */
-
-router.get("/logout", (req, res) => {
-  req.logout(() => {
-    res.json({ message: "Logged out" });
-  });
-});
-
-module.exports = router
+module.exports = router;
