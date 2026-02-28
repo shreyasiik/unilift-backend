@@ -46,32 +46,39 @@ router.post("/send-otp", otpLimiter, async (req, res) => {
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    // Brevo API call directly
     await axios({
-  method: "post",
-  url: "https://api.brevo.com/v3/smtp/email",
-  headers: {
-    "accept": "application/json",
-    "content-type": "application/json",
-    "api-key": process.env.BREVO_API_KEY,
-  },
-  data: {
-    sender: {
-      email: process.env.EMAIL_FROM,
-      name: "UniLift",
-    },
-    to: [{ email }],
-    subject: "UniLift OTP Verification",
-    htmlContent: `
-      <div style="font-family:sans-serif;">
-        <h2>UniLift Verification Code</h2>
-        <p>Your OTP is:</p>
-        <h1 style="letter-spacing:4px;">${otp}</h1>
-        <p>This OTP expires in 5 minutes.</p>
-      </div>
-    `,
-  },
+      method: "post",
+      url: "https://api.brevo.com/v3/smtp/email",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "api-key": process.env.BREVO_API_KEY,
+      },
+      data: {
+        sender: {
+          email: process.env.EMAIL_FROM,
+          name: "UniLift",
+        },
+        to: [{ email }],
+        subject: "UniLift OTP Verification",
+        htmlContent: `
+          <div style="font-family:sans-serif;">
+            <h2>UniLift Verification Code</h2>
+            <p>Your OTP is:</p>
+            <h1 style="letter-spacing:4px;">${otp}</h1>
+            <p>This OTP expires in 5 minutes.</p>
+          </div>
+        `,
+      },
+    });
+
+    res.status(200).json({ message: "OTP sent successfully." });
+  } catch (error) {
+    console.error("Send OTP Error:", error.response?.data || error.message);
+    res.status(500).json({ message: "Failed to send OTP." });
+  }
 });
+
 // =========================
 // VERIFY OTP
 // =========================
@@ -99,7 +106,6 @@ router.post("/verify-otp", async (req, res) => {
     await Otp.deleteOne({ email });
 
     res.status(200).json({ message: "OTP verified successfully." });
-
   } catch (error) {
     console.error("Verify OTP Error:", error);
     res.status(500).json({ message: "Verification failed." });
@@ -142,7 +148,6 @@ router.post("/register", async (req, res) => {
     await newUser.save();
 
     res.status(201).json({ message: "User registered successfully." });
-
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Registration failed." });
@@ -180,7 +185,6 @@ router.post("/login", async (req, res) => {
         role: user.role,
       },
     });
-
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ message: "Login failed." });
