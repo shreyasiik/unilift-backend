@@ -1,6 +1,4 @@
-require("dotenv").config({ path: "./.env" });
-console.log("Loaded KEY:", process.env.RESEND_API_KEY);
-console.log("CWD:", process.cwd());
+require("dotenv").config();
 
 const express = require("express");
 const mongoose = require("mongoose");
@@ -14,10 +12,12 @@ const authRoutes = require("./routes/auth");
 
 const app = express();
 
-/* ============================= */
-/* BASIC MIDDLEWARE */
-/* ============================= */
+// IMPORTANT FOR RENDER (PROXY)
+app.set("trust proxy", 1);
 
+// =============================
+// MIDDLEWARE
+// =============================
 app.use(express.json());
 
 app.use(
@@ -30,13 +30,12 @@ app.use(
   })
 );
 
-/* ============================= */
-/* SESSION SETUP */
-/* ============================= */
-
+// =============================
+// SESSION
+// =============================
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "supersecretkey",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -48,27 +47,18 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-/* ============================= */
-/* ROUTES */
-/* ============================= */
-
+// =============================
+// ROUTES
+// =============================
 app.use("/api/auth", authRoutes);
 
 app.get("/", (req, res) => {
   res.send("UniLift Backend Running 🚀");
 });
 
-app.get("/api/protected", (req, res) => {
-  if (req.isAuthenticated()) {
-    return res.json({ message: "Authenticated", user: req.user });
-  }
-  res.status(401).json({ message: "Unauthorized" });
-});
-
-/* ============================= */
-/* DATABASE CONNECTION */
-/* ============================= */
-
+// =============================
+// DATABASE
+// =============================
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
@@ -81,5 +71,5 @@ mongoose
     });
   })
   .catch((err) => {
-    console.log("MongoDB ERROR:", err);
+    console.error("MongoDB ERROR:", err);
   });

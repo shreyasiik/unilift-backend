@@ -1,34 +1,32 @@
 const express = require("express");
 const router = express.Router();
-
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
-const { Resend } = require("resend");
+const axios = require("axios");
 
 const User = require("../models/User");
 const Otp = require("../models/Otp");
 
-require("dotenv").config();
-
-console.log("RESEND KEY:", process.env.RESEND_API_KEY);
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Rate limiter for OTP
+// =========================
+// RATE LIMITER
+// =========================
 const otpLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
   message: { message: "Too many OTP requests. Try again later." },
 });
 
-// Generate 6-digit OTP
+// =========================
+// GENERATE OTP
+// =========================
 function generateOTP() {
   return crypto.randomInt(100000, 999999).toString();
 }
 
-/* =========================
-   SEND OTP
-========================= */
+// =========================
+// SEND OTP
+// =========================
 router.post("/send-otp", otpLimiter, async (req, res) => {
   try {
     const { email } = req.body;
@@ -48,31 +46,44 @@ router.post("/send-otp", otpLimiter, async (req, res) => {
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM,
-      to: email,
-      subject: "UniLift OTP Verification",
-      html: `
-        <div style="font-family:sans-serif;">
-          <h2>UniLift Verification Code</h2>
-          <p>Your OTP is:</p>
-          <h1 style="letter-spacing:4px;">${otp}</h1>
-          <p>This OTP expires in 5 minutes.</p>
-        </div>
-      `,
-    });
+    // Brevo API call directly
+    await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: {
+          email: process.env.EMAIL_FROM,
+          name: "UniLift",
+        },
+        to: [{ email }],
+        subject: "UniLift OTP Verification",
+        htmlContent: `
+          <div style="font-family:sans-serif;">
+            <h2>UniLift Verification Code</h2>
+            <p>Your OTP is:</p>
+            <h1 style="letter-spacing:4px;">${otp}</h1>
+            <p>This OTP expires in 5 minutes.</p>
+          </div>
+        `,
+      },
+      {
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     res.status(200).json({ message: "OTP sent successfully." });
 
   } catch (error) {
-    console.error("Send OTP Error:", error);
+    console.error("Send OTP Error:", error.response?.data || error.message);
     res.status(500).json({ message: "Failed to send OTP." });
   }
 });
 
-/* =========================
-   VERIFY OTP
-========================= */
+// =========================
+// VERIFY OTP
+// =========================
 router.post("/verify-otp", async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -96,7 +107,7 @@ router.post("/verify-otp", async (req, res) => {
 
     await Otp.deleteOne({ email });
 
-    res.status(200).json({ message: "OTP verified." });
+    res.status(200).json({ message: "OTP verified successfully." });
 
   } catch (error) {
     console.error("Verify OTP Error:", error);
@@ -104,9 +115,9 @@ router.post("/verify-otp", async (req, res) => {
   }
 });
 
-/* =========================
-   REGISTER
-========================= */
+// =========================
+// REGISTER
+// =========================
 router.post("/register", async (req, res) => {
   try {
     const {
@@ -134,6 +145,7 @@ router.post("/register", async (req, res) => {
       drivingLicense: role === "driver" ? drivingLicense : undefined,
       vehicleNumber: role === "driver" ? vehicleNumber : undefined,
       vehicleType: role === "driver" ? vehicleType : undefined,
+      isApproved: role === "driver" ? false : true,
     });
 
     await newUser.save();
@@ -146,9 +158,9 @@ router.post("/register", async (req, res) => {
   }
 });
 
-/* =========================
-   LOGIN
-========================= */
+// =========================
+// LOGIN
+// =========================
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -161,6 +173,12 @@ router.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials." });
+    }
+
+    if (user.role === "driver" && !user.isApproved) {
+      return res.status(403).json({
+        message: "Driver account pending approval.",
+      });
     }
 
     res.status(200).json({
