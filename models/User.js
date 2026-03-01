@@ -1,53 +1,39 @@
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+  },
+
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
   },
+
   password: {
     type: String,
-    required: true
+    required: true,
   },
+
   role: {
     type: String,
     enum: ["driver", "rider"],
-    required: true
-  },
-  isVerified: {
-    type: Boolean,
-    default: false
+    required: true,
   },
 
   // Driver-only fields
   licenseNumber: {
-    type: String
+    type: String,
   },
+
   vehicleNumber: {
-    type: String
+    type: String,
   },
+
   vehicleType: {
-    type: String
-  }
-
-}, { timestamps: true });
-
-isAdmin: {
-  type: Boolean,
-  default: false,
-},
-const mongoose = require("mongoose");
-
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  password: String,
-  role: String,
-
-  drivingLicense: String,
-  vehicleNumber: String,
-  vehicleType: String,
+    type: String,
+  },
 
   isVerified: {
     type: Boolean,
@@ -63,9 +49,7 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+
 }, { timestamps: true });
-
-module.exports = mongoose.model("User", userSchema);
-
 
 module.exports = mongoose.model("User", userSchema);
