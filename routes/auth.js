@@ -171,7 +171,12 @@ router.post("/login", async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials." });
     }
-
+    console.log("Login debug:", {
+     email: user.email,
+      role: user.role,
+      isApproved: user.isApproved,
+      isAdmin: user.isAdmin
+});
     if (user.role === "driver" && !user.isApproved) {
       return res.status(403).json({
         message: "Driver account pending approval.",
