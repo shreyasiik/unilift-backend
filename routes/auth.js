@@ -201,6 +201,10 @@ router.patch("/approve-driver/:id", async (req, res) => {
     const { adminId } = req.body;
 
     const adminUser = await User.findById(adminId);
+
+    console.log("Admin ID received:", adminId);
+    console.log("Admin user found:", adminUser);
+
     if (!adminUser || !adminUser.isAdmin) {
       return res.status(403).json({ message: "Access denied." });
     }
