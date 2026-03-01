@@ -33,4 +33,39 @@ const userSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+isAdmin: {
+  type: Boolean,
+  default: false,
+},
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  password: String,
+  role: String,
+
+  drivingLicense: String,
+  vehicleNumber: String,
+  vehicleType: String,
+
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+
+  isApproved: {
+    type: Boolean,
+    default: false,
+  },
+
+  isAdmin: {
+    type: Boolean,
+    default: false,
+  },
+}, { timestamps: true });
+
+module.exports = mongoose.model("User", userSchema);
+
+
 module.exports = mongoose.model("User", userSchema);
