@@ -45,7 +45,6 @@ router.post("/send-otp", otpLimiter, async (req, res) => {
       otp: hashedOtp,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
-    console.log("OTP saved for:", email);
 
     await axios({
       method: "post",
@@ -144,6 +143,7 @@ router.post("/register", async (req, res) => {
       vehicleNumber: role === "driver" ? vehicleNumber : undefined,
       vehicleType: role === "driver" ? vehicleType : undefined,
       isApproved: role === "driver" ? false : true,
+      isAdmin: false,
     });
 
     await newUser.save();
@@ -184,11 +184,39 @@ router.post("/login", async (req, res) => {
         id: user._id,
         name: user.name,
         role: user.role,
+        isAdmin: user.isAdmin,
       },
     });
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ message: "Login failed." });
+  }
+});
+
+// =========================
+// APPROVE DRIVER (ADMIN ONLY)
+// =========================
+router.patch("/approve-driver/:id", async (req, res) => {
+  try {
+    const { adminId } = req.body;
+
+    const adminUser = await User.findById(adminId);
+    if (!adminUser || !adminUser.isAdmin) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+
+    const driver = await User.findById(req.params.id);
+    if (!driver || driver.role !== "driver") {
+      return res.status(400).json({ message: "Driver not found." });
+    }
+
+    driver.isApproved = true;
+    await driver.save();
+
+    res.status(200).json({ message: "Driver approved successfully." });
+  } catch (error) {
+    console.error("Approve Driver Error:", error);
+    res.status(500).json({ message: "Approval failed." });
   }
 });
 
