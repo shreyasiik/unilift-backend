@@ -142,7 +142,7 @@ router.post("/register", async (req, res) => {
       drivingLicense: role === "driver" ? drivingLicense : undefined,
       vehicleNumber: role === "driver" ? vehicleNumber : undefined,
       vehicleType: role === "driver" ? vehicleType : undefined,
-      isApproved: role === "driver" ? false : true,
+      isApproved: true
       isAdmin: false,
     });
 
@@ -177,11 +177,11 @@ router.post("/login", async (req, res) => {
       isApproved: user.isApproved,
       isAdmin: user.isAdmin
 });
-    if (user.role === "driver" && !user.isApproved) {
-      return res.status(403).json({
-        message: "Driver account pending approval.",
-      });
-    }
+    if (user.isBanned === true) {
+  return res.status(403).json({
+    message: "Account banned."
+  });
+}
 
     res.status(200).json({
       message: "Login successful.",
