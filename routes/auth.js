@@ -223,5 +223,38 @@ router.patch("/approve-driver/:id", async (req, res) => {
     res.status(500).json({ message: "Approval failed." });
   }
 });
+router.patch("/approve-driver/:id", async (req, res) => {
+  try {
+    const { adminId } = req.body;
+
+    if (!adminId) {
+      return res.status(400).json({ message: "Admin ID required." });
+    }
+
+    const adminUser = await User.findById(adminId);
+
+    if (!adminUser || adminUser.isAdmin !== true) {
+      return res.status(403).json({ message: "Access denied." });
+    }
+
+    const driver = await User.findById(req.params.id);
+
+    if (!driver || driver.role !== "driver") {
+      return res.status(404).json({ message: "Driver not found." });
+    }
+
+    driver.isApproved = true;
+    await driver.save();
+
+    res.status(200).json({
+      message: "Driver approved successfully.",
+      driverId: driver._id,
+    });
+
+  } catch (error) {
+    console.error("Approve Driver Error:", error);
+    res.status(500).json({ message: "Approval failed." });
+  }
+});
 
 module.exports = router;
