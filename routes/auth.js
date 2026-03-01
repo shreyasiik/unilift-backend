@@ -45,6 +45,7 @@ router.post("/send-otp", otpLimiter, async (req, res) => {
       otp: hashedOtp,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
+    console.log("OTP saved for:", email);
 
     await axios({
       method: "post",
