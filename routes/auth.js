@@ -135,20 +135,21 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
-      name,
-      email,
+      name: name,
+      email: email,
       password: hashedPassword,
-      role,
-      drivingLicense: role === "driver" ? drivingLicense : undefined,
+      role: role,
+      licenseNumber: role === "driver" ? drivingLicense : undefined,
       vehicleNumber: role === "driver" ? vehicleNumber : undefined,
       vehicleType: role === "driver" ? vehicleType : undefined,
-      isApproved: true
-      isAdmin: false,
+      isApproved: true,
+      isAdmin: false
     });
 
     await newUser.save();
 
     res.status(201).json({ message: "User registered successfully." });
+
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Registration failed." });
